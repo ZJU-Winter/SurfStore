@@ -299,7 +299,7 @@ func (s *RaftSurfstore) AppendEntries(ctx context.Context, input *AppendEntryInp
 		} else {
 			s.commitIndex = int64(len(s.log) - 1)
 		}
-		log.Printf("Server[%v]: AppendEntries commitIndex: %v\n", s.ID, s.commitIndex)
+		log.Printf("Server[%v]: AppendEntries updated commitIndex: %v\n", s.ID, s.commitIndex)
 		for s.lastApplied < s.commitIndex {
 			_, err := s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
 			if err != nil {
@@ -309,7 +309,7 @@ func (s *RaftSurfstore) AppendEntries(ctx context.Context, input *AppendEntryInp
 			s.lastApplied += 1
 		}
 	}
-	log.Printf("Server[%v]: AppendEntries lastApplied: %v\n", s.ID, s.lastApplied)
+	log.Printf("Server[%v]: AppendEntries updated lastApplied: %v\n", s.ID, s.lastApplied)
 	return &AppendEntryOutput{
 		ServerId:     s.ID,
 		Term:         s.term,
