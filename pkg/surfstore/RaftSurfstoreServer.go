@@ -34,15 +34,21 @@ type RaftSurfstore struct {
 func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty) (*FileInfoMap, error) {
 	log.Printf("Server[%v]: GetFileInfoMap\n", s.ID)
 	s.isCrashedMutex.RLock()
-	defer s.isCrashedMutex.RLocker().Unlock()
 	if s.isCrashed {
 		log.Printf("Server[%v]: GetFileInfoMap crashed\n", s.ID)
+		s.isCrashedMutex.RLocker().Unlock()
 		return nil, ERR_SERVER_CRASHED
 	}
+	s.isCrashedMutex.RLocker().Unlock()
+
+	s.isLeaderMutex.RLocker().Lock()
 	if !s.isLeader {
 		log.Printf("Server[%v]: GetFileInfoMap not the leader\n", s.ID)
+		s.isLeaderMutex.RLocker().Unlock()
 		return nil, ERR_NOT_LEADER
 	}
+	s.isLeaderMutex.RLocker().Unlock()
+
 	majorityChan := make(chan bool)
 
 	log.Printf("Server[%v]: GetFileInfoMap SendToAllFollowers\n", s.ID)
@@ -64,15 +70,21 @@ func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty
 func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashes) (*BlockStoreMap, error) {
 	log.Printf("Server[%v]: GetBlockStoreMap\n", s.ID)
 	s.isCrashedMutex.RLock()
-	defer s.isCrashedMutex.RLocker().Unlock()
 	if s.isCrashed {
 		log.Printf("Server[%v]: GetBlockStoreMap crashed\n", s.ID)
+		s.isCrashedMutex.RLocker().Unlock()
 		return nil, ERR_SERVER_CRASHED
 	}
+	s.isCrashedMutex.RLocker().Unlock()
+
+	s.isLeaderMutex.RLocker().Lock()
 	if !s.isLeader {
+		s.isLeaderMutex.RLocker().Unlock()
 		log.Printf("Server[%v]: GetBlockStoreMap not the leader\n", s.ID)
 		return nil, ERR_NOT_LEADER
 	}
+	s.isLeaderMutex.RLocker().Unlock()
+
 	majorityChan := make(chan bool)
 
 	log.Printf("Server[%v]: GetBlockStoreMap SendToAllFollowers\n", s.ID)
@@ -94,15 +106,21 @@ func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashe
 func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.Empty) (*BlockStoreAddrs, error) {
 	log.Printf("Server[%v]: GetBlockStoreAddrs\n", s.ID)
 	s.isCrashedMutex.RLock()
-	defer s.isCrashedMutex.RLocker().Unlock()
 	if s.isCrashed {
 		log.Printf("Server[%v]: GetBlockStoreAddrs crashed\n", s.ID)
+		s.isCrashedMutex.RLocker().Unlock()
 		return nil, ERR_SERVER_CRASHED
 	}
+	s.isCrashedMutex.RLocker().Unlock()
+
+	s.isLeaderMutex.RLocker().Lock()
 	if !s.isLeader {
 		log.Printf("Server[%v]: GetBlockStoreAddrs not the leader\n", s.ID)
+		s.isLeaderMutex.RLocker().Unlock()
 		return nil, ERR_NOT_LEADER
 	}
+	s.isLeaderMutex.RLocker().Unlock()
+
 	majorityChan := make(chan bool)
 
 	log.Printf("Server[%v]: GetBlockStoreAddrs SendToAllFollowers\n", s.ID)
@@ -132,15 +150,20 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) (*Version, error) {
 	log.Printf("Server[%v]: UpdateFile\n", s.ID)
 	s.isCrashedMutex.RLock()
-	defer s.isCrashedMutex.RLocker().Unlock()
 	if s.isCrashed {
+		s.isCrashedMutex.RLocker().Unlock()
 		log.Printf("Server[%v]: UpdateFile crashed\n", s.ID)
 		return nil, ERR_SERVER_CRASHED
 	}
+	s.isCrashedMutex.RLocker().Unlock()
+
+	s.isLeaderMutex.RLocker().Lock()
 	if !s.isLeader {
+		s.isLeaderMutex.RLocker().Unlock()
 		log.Printf("Server[%v]: UpdateFile not the leader\n", s.ID)
 		return nil, ERR_NOT_LEADER
 	}
+	s.isLeaderMutex.RLocker().Unlock()
 	s.log = append(s.log, &UpdateOperation{Term: s.term, FileMetaData: filemeta})
 	commitChan := make(chan bool)
 
@@ -166,6 +189,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		}, err
 	}
 	return rst, nil
+	// return nil, ERR_MAJORITY_DOWN
 }
 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
