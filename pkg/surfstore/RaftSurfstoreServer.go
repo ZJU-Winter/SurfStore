@@ -4,6 +4,7 @@ import (
 	context "context"
 	"log"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -143,8 +144,11 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 	log.Printf("Server[%v]: UpdateFile SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &commitChan)
 
-	commit := <-commitChan // blocking here
-	if commit {
+	if commit := <-commitChan; !commit { // blocking here
+		log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
+		time.Sleep(2 * time.Second)
+		go s.SendToAllFollowers(ctx, &commitChan)
+	} else {
 		log.Printf("Server[%v]: UpdateFile update commitIndex\n", s.ID)
 		s.commitIndex = int64(len(s.log) - 1)
 		rst := &Version{}
@@ -187,6 +191,8 @@ func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan
 	if totalSuccess > len(s.peers)/2 {
 		log.Printf("Server[%v]: Connected to majority of the followers\n", s.ID)
 		*commitChan <- true
+	} else {
+		*commitChan <- false
 	}
 }
 
