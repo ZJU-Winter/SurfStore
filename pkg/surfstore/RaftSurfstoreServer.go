@@ -264,7 +264,7 @@ func (s *RaftSurfstore) SendToFollower(ctx context.Context, peerIndex int, respo
 			*responses <- false
 			return
 		}
-		if s.nextIndex[peerIndex] != -1 {
+		if s.nextIndex[peerIndex] != 0 {
 			s.nextIndex[peerIndex] -= 1
 		}
 	}
@@ -427,7 +427,7 @@ peerLoop:
 				s.isLeaderMutex.Unlock()
 				break peerLoop
 			}
-			if s.nextIndex[peerIndex] != -1 {
+			if s.nextIndex[peerIndex] != 0 {
 				s.nextIndex[peerIndex] -= 1
 			}
 		}
