@@ -173,7 +173,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 
 	for commit := <-commitChan; !commit; { // blocking here
 		log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
-		// time.Sleep(2 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &commitChan)
 	}
 	log.Printf("Server[%v]: UpdateFile update commitIndex\n", s.ID)
