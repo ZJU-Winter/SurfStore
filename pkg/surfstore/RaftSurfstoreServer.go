@@ -189,6 +189,8 @@ func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan
 	if totalSuccess > len(s.peers)/2 {
 		log.Printf("Server[%v]: Connected to majority of the followers\n", s.ID)
 		*commitChan <- true
+	} else {
+		*commitChan <- false
 	}
 
 }
