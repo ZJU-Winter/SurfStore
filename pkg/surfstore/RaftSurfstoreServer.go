@@ -289,8 +289,13 @@ func (s *RaftSurfstore) AppendEntries(ctx context.Context, input *AppendEntryInp
 		} else {
 			s.commitIndex = int64(len(s.log) - 1)
 		}
+		log.Printf("Server[%v]: AppendEntries commitIndex: %v\n", s.ID, s.commitIndex)
 		for s.lastApplied < s.commitIndex {
-			s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
+			_, err := s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
+			if err != nil {
+				log.Printf("Server[%d]: AppendEntries updatefile failed\n", s.ID)
+				return nil, err
+			}
 			s.lastApplied += 1
 		}
 	}
@@ -319,7 +324,7 @@ func (s *RaftSurfstore) SetLeader(ctx context.Context, _ *emptypb.Empty) (*Succe
 	s.term += 1
 
 	for i := range s.peers {
-		if i == int(s.ID) {
+		if int64(i) == s.ID {
 			continue
 		}
 		s.matchIndex[i] = -1
@@ -332,7 +337,7 @@ func (s *RaftSurfstore) SetLeader(ctx context.Context, _ *emptypb.Empty) (*Succe
 }
 
 // call AppendEntries() to all the peers
-// TODO: update pendingCommit
+// TODO: check matchIndex, majority and current term, update commitIndex
 func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*Success, error) {
 	log.Printf("Server[%v]: SendHeartbeat\n", s.ID)
 	s.isCrashedMutex.RLocker().Lock()
@@ -351,29 +356,29 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 	}
 	s.isLeaderMutex.RLocker().Unlock()
 
-	for i, followerAddr := range s.peers {
-		if i == int(s.ID) {
+	for peerIndex, followerAddr := range s.peers {
+		if int64(peerIndex) == s.ID {
 			continue
 		}
-		log.Printf("Server[%d]: sendHearBeat to Server[%d]\n", s.ID, i)
+		log.Printf("Server[%d]: sendHearBeat to Server[%d]\n", s.ID, peerIndex)
 		conn, err := grpc.Dial(followerAddr, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
 		}
 		prevLogTerm := 0
-		if s.nextIndex[i] != 0 {
-			prevLogTerm = int(s.log[s.nextIndex[i]-1].Term)
+		if s.nextIndex[peerIndex] != 0 {
+			prevLogTerm = int(s.log[s.nextIndex[peerIndex]-1].Term)
 		}
 		input := &AppendEntryInput{
 			Term:         s.term,
-			PrevLogIndex: s.nextIndex[i] - 1,
+			PrevLogIndex: s.nextIndex[peerIndex] - 1,
 			PrevLogTerm:  int64(prevLogTerm),
-			Entries:      s.log[s.nextIndex[i]:],
+			Entries:      s.log[s.nextIndex[peerIndex]:],
 			LeaderCommit: s.commitIndex,
 		}
 		client := NewRaftSurfstoreClient(conn)
 		output, err := client.AppendEntries(ctx, input)
-		log.Printf("Server[%d]: follower[%v] return %v\n", s.ID, i, output)
+		log.Printf("Server[%d]: follower[%v] return %v\n", s.ID, peerIndex, output)
 		if err != nil { // follower crashed
 			continue
 		}
@@ -385,11 +390,45 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 			s.isLeaderMutex.Unlock()
 			break
 		}
+		if output.Success {
+			log.Printf("Server[%v]: Follower[%d] commited, update matchIndex and nextIndex\n", s.ID, peerIndex)
+			s.nextIndex[peerIndex] = int64(len(s.log))
+			s.matchIndex[peerIndex] = output.MatchedIndex
+		}
 	}
-
+	// update commitIndex, commit and apply
+	for commitIndex := s.commitIndex + 1; commitIndex < int64(len(s.log)); commitIndex += 1 {
+		if s.MajorityCommited(commitIndex) {
+			s.commitIndex = commitIndex
+		}
+	}
+	log.Printf("Server[%d]: after heartbeat, the commitIndex is %v\n", s.ID, s.commitIndex)
+	for s.lastApplied < s.commitIndex {
+		_, err := s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
+		if err != nil {
+			log.Printf("Server[%d]: SendHeartBeat updatefile failed\n", s.ID)
+			return nil, err
+		}
+		s.lastApplied += 1
+	}
+	log.Printf("Server[%d]: after heartbeat, the lastApplied is %v\n", s.ID, s.lastApplied)
 	return &Success{
 		Flag: true,
 	}, nil
+}
+
+// TODO: check all casting
+func (s *RaftSurfstore) MajorityCommited(commitIndex int64) bool {
+	count := 1
+	for peerIndex := range s.peers {
+		if int64(peerIndex) == s.ID {
+			continue
+		}
+		if s.matchIndex[peerIndex] >= commitIndex {
+			count += 1
+		}
+	}
+	return count > len(s.peers)/2 && s.log[commitIndex].Term == s.term
 }
 
 // ========== DO NOT MODIFY BELOW THIS LINE =====================================
