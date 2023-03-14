@@ -125,8 +125,6 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 //  3. block until majority of the followers return true, commitChan
 //  4. apply to metaStore, update lastApplied and commitIndex
 //  5. update matchIndex to the return value, update nextIndex matchIndex + 1
-//
-// TODO: check matchIndex, majority and current term, update commitIndex
 func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) (*Version, error) {
 	log.Printf("Server[%v]: UpdateFile\n", s.ID)
 	s.isCrashedMutex.RLock()
@@ -168,7 +166,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
 	responses := make(chan bool, len(s.peers)-1)
 	for i := range s.peers {
-		if i == int(s.ID) {
+		if int64(i) == s.ID {
 			continue
 		}
 		go s.SendToFollower(ctx, i, &responses)
@@ -205,9 +203,9 @@ func (s *RaftSurfstore) SendToFollower(ctx context.Context, peerIndex int, respo
 	}
 	client := NewRaftSurfstoreClient(conn)
 	for {
-		prevLogTerm := 0
+		var prevLogTerm int64 = 0
 		if s.nextIndex[peerIndex] != 0 {
-			prevLogTerm = int(s.log[s.nextIndex[peerIndex]-1].Term)
+			prevLogTerm = s.log[s.nextIndex[peerIndex]-1].Term
 		}
 		input := &AppendEntryInput{
 			Term:         s.term,
@@ -337,7 +335,7 @@ func (s *RaftSurfstore) SetLeader(ctx context.Context, _ *emptypb.Empty) (*Succe
 }
 
 // call AppendEntries() to all the peers
-// TODO: check matchIndex, majority and current term, update commitIndex
+// check matchIndex, majority and current term, update commitIndex
 func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*Success, error) {
 	log.Printf("Server[%v]: SendHeartbeat\n", s.ID)
 	s.isCrashedMutex.RLocker().Lock()
@@ -365,9 +363,9 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 		if err != nil {
 			return nil, err
 		}
-		prevLogTerm := 0
+		var prevLogTerm int64 = 0
 		if s.nextIndex[peerIndex] != 0 {
-			prevLogTerm = int(s.log[s.nextIndex[peerIndex]-1].Term)
+			prevLogTerm = s.log[s.nextIndex[peerIndex]-1].Term
 		}
 		input := &AppendEntryInput{
 			Term:         s.term,
@@ -417,7 +415,6 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 	}, nil
 }
 
-// TODO: check all casting
 func (s *RaftSurfstore) MajorityCommited(commitIndex int64) bool {
 	count := 1
 	for peerIndex := range s.peers {
