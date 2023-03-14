@@ -56,7 +56,7 @@ func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty
 		}
 		return rst, nil
 	}
-	return nil, nil
+	return nil, ERR_MAJORITY_DOWN
 }
 
 func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashes) (*BlockStoreMap, error) {
@@ -85,7 +85,7 @@ func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashe
 		}
 		return rst, nil
 	}
-	return nil, nil
+	return nil, ERR_MAJORITY_DOWN
 }
 
 func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.Empty) (*BlockStoreAddrs, error) {
@@ -114,7 +114,7 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 		}
 		return rst, nil
 	}
-	return nil, nil
+	return nil, ERR_MAJORITY_DOWN
 }
 
 //  1. check isLeader and isCrashed, append the filemeta to the log
@@ -162,7 +162,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		}
 		return rst, nil
 	}
-	return nil, nil
+	return nil, ERR_MAJORITY_DOWN
 }
 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
