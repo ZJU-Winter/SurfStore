@@ -434,8 +434,8 @@ func (s *RaftSurfstore) MajorityCommited(commitIndex int64) bool {
 			count += 1
 		}
 	}
-	// return count > len(s.peers)/2 && s.log[commitIndex].Term == s.term
-	return count > len(s.peers)/2
+	return count > len(s.peers)/2 && s.log[commitIndex].Term == s.term
+	// return count > len(s.peers)/2
 }
 
 // ========== DO NOT MODIFY BELOW THIS LINE =====================================
