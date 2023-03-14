@@ -173,7 +173,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 
 	for commit := <-commitChan; !commit; { // blocking here
 		log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
-		time.Sleep(time.Second)
+		// time.Sleep(2 * time.Second)
 		go s.SendToAllFollowers(ctx, &commitChan)
 	}
 	log.Printf("Server[%v]: UpdateFile update commitIndex\n", s.ID)
@@ -264,7 +264,9 @@ func (s *RaftSurfstore) SendToFollower(ctx context.Context, peerIndex int, respo
 			*responses <- false
 			return
 		}
-		s.nextIndex[peerIndex] -= 1
+		if s.nextIndex[peerIndex] != -1 {
+			s.nextIndex[peerIndex] -= 1
+		}
 	}
 }
 
@@ -425,7 +427,9 @@ peerLoop:
 				s.isLeaderMutex.Unlock()
 				break peerLoop
 			}
-			s.nextIndex[peerIndex] -= 1
+			if s.nextIndex[peerIndex] != -1 {
+				s.nextIndex[peerIndex] -= 1
+			}
 		}
 
 	}
