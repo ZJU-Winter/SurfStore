@@ -48,9 +48,12 @@ func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty
 	log.Printf("Server[%v]: GetFileInfoMap SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
-	connected := <-majorityChan // blocking here
-	if connected {
-		log.Printf("Server[%v]: GetFileInfoMap update commitIndex\n", s.ID)
+	if connected := <-majorityChan; !connected { // blocking here
+		log.Printf("Server[%v]: GetFileInfoMap failed to contact majority of the nodes, retry\n", s.ID)
+		time.Sleep(2 * time.Second)
+		go s.SendToAllFollowers(ctx, &majorityChan)
+	} else {
+		log.Printf("Server[%v]: GetFileInfoMap return right value\n", s.ID)
 		rst, err := s.metaStore.GetFileInfoMap(ctx, empty)
 		if err != nil {
 			return nil, err
@@ -77,9 +80,12 @@ func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashe
 	log.Printf("Server[%v]: GetBlockStoreMap SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
-	connected := <-majorityChan // blocking here
-	if connected {
-		log.Printf("Server[%v]: GetBlockStoreMap update commitIndex\n", s.ID)
+	if connected := <-majorityChan; !connected { // blocking here
+		log.Printf("Server[%v]: GetBlockStoreMap failed to contact majority of the nodes, retry\n", s.ID)
+		time.Sleep(2 * time.Second)
+		go s.SendToAllFollowers(ctx, &majorityChan)
+	} else {
+		log.Printf("Server[%v]: GetBlockStoreMap return right value\n", s.ID)
 		rst, err := s.metaStore.GetBlockStoreMap(ctx, hashes)
 		if err != nil {
 			return nil, err
@@ -106,8 +112,11 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 	log.Printf("Server[%v]: GetBlockStoreAddrs SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
-	connected := <-majorityChan // blocking here
-	if connected {
+	if connected := <-majorityChan; !connected { // blocking here
+		log.Printf("Server[%v]: GetBlockStoreAddrs failed to contact majority of the nodes, retry\n", s.ID)
+		time.Sleep(2 * time.Second)
+		go s.SendToAllFollowers(ctx, &majorityChan)
+	} else {
 		log.Printf("Server[%v]: GetBlockStoreAddrs update commitIndex\n", s.ID)
 		rst, err := s.metaStore.GetBlockStoreAddrs(ctx, empty)
 		if err != nil {
