@@ -33,7 +33,7 @@ type RaftSurfstore struct {
 
 func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty) (*FileInfoMap, error) {
 	log.Printf("Server[%v]: GetFileInfoMap\n", s.ID)
-	s.isCrashedMutex.RLock()
+	s.isCrashedMutex.RLocker().Lock()
 	if s.isCrashed {
 		log.Printf("Server[%v]: GetFileInfoMap crashed\n", s.ID)
 		s.isCrashedMutex.RLocker().Unlock()
@@ -92,7 +92,7 @@ func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashe
 
 	for connected := <-majorityChan; !connected; { // blocking here
 		log.Printf("Server[%v]: GetBlockStoreMap failed to contact majority of the nodes, retry\n", s.ID)
-		time.Sleep(2 * time.Second)
+		time.Sleep(time.Second)
 		go s.SendToAllFollowers(ctx, &majorityChan)
 	}
 	log.Printf("Server[%v]: GetBlockStoreMap return right value\n", s.ID)
@@ -164,6 +164,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		return nil, ERR_NOT_LEADER
 	}
 	s.isLeaderMutex.RLocker().Unlock()
+
 	s.log = append(s.log, &UpdateOperation{Term: s.term, FileMetaData: filemeta})
 	commitChan := make(chan bool)
 
@@ -338,16 +339,17 @@ func (s *RaftSurfstore) AppendEntries(ctx context.Context, input *AppendEntryInp
 func (s *RaftSurfstore) SetLeader(ctx context.Context, _ *emptypb.Empty) (*Success, error) {
 	log.Printf("Server[%v]: SetLeader \n", s.ID)
 	s.isCrashedMutex.RLocker().Lock()
-	defer s.isCrashedMutex.RLocker().Unlock()
 	if s.isCrashed {
 		log.Printf("Server[%v]: crashed\n", s.ID)
+		s.isCrashedMutex.RLocker().Unlock()
 		return nil, ERR_SERVER_CRASHED
 	}
+	s.isCrashedMutex.RLocker().Unlock()
 
 	s.isLeaderMutex.Lock()
-	defer s.isLeaderMutex.Unlock()
 	s.isLeader = true
 	s.term += 1
+	s.isLeaderMutex.Unlock()
 
 	for i := range s.peers {
 		if int64(i) == s.ID {
