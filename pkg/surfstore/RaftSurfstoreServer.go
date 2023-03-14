@@ -147,7 +147,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 	log.Printf("Server[%v]: UpdateFile SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &commitChan)
 
-	if commit := <-commitChan; !commit { // blocking here
+	if commit := <-commitChan; !commit { // currently no blocking here
 		log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
 		time.Sleep(2 * time.Second)
 		go s.SendToAllFollowers(ctx, &commitChan)
@@ -167,7 +167,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		}
 		return rst, nil
 	}
-	return nil, nil
+	return nil, ERR_MAJORITY_DOWN
 }
 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
