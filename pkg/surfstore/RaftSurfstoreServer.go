@@ -190,7 +190,6 @@ func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan
 	} else {
 		*commitChan <- false
 	}
-
 }
 
 // send AppendEntries to a follower, send fasle to response if crashed, otherwise retry until success
@@ -354,6 +353,7 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 	}
 	s.isLeaderMutex.RLocker().Unlock()
 
+peerLoop:
 	for peerIndex, followerAddr := range s.peers {
 		if int64(peerIndex) == s.ID {
 			continue
@@ -363,36 +363,40 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 		if err != nil {
 			return nil, err
 		}
-		var prevLogTerm int64 = 0
-		if s.nextIndex[peerIndex] != 0 {
-			prevLogTerm = s.log[s.nextIndex[peerIndex]-1].Term
+		for {
+			var prevLogTerm int64 = 0
+			if s.nextIndex[peerIndex] != 0 {
+				prevLogTerm = s.log[s.nextIndex[peerIndex]-1].Term
+			}
+			input := &AppendEntryInput{
+				Term:         s.term,
+				PrevLogIndex: s.nextIndex[peerIndex] - 1,
+				PrevLogTerm:  int64(prevLogTerm),
+				Entries:      s.log[s.nextIndex[peerIndex]:],
+				LeaderCommit: s.commitIndex,
+			}
+			client := NewRaftSurfstoreClient(conn)
+			output, err := client.AppendEntries(ctx, input)
+			log.Printf("Server[%d]: follower[%d] return %v\n", s.ID, peerIndex, output)
+			if err != nil { // follower crashed
+				break
+			}
+			if output.Success { // follower commited
+				log.Printf("Server[%v]: Follower[%d] commited, update matchIndex to %v and nextIndex to %v \n", s.ID, peerIndex, output.MatchedIndex, int64(len(s.log)))
+				s.nextIndex[peerIndex] = int64(len(s.log))
+				s.matchIndex[peerIndex] = output.MatchedIndex
+				break
+			} else if s.term < output.Term {
+				log.Printf("Server[%d]: I am not the leader anymore\n", s.ID)
+				s.term = output.Term
+				s.isLeaderMutex.Lock()
+				s.isLeader = false
+				s.isLeaderMutex.Unlock()
+				break peerLoop
+			}
+			s.nextIndex[peerIndex] -= 1
 		}
-		input := &AppendEntryInput{
-			Term:         s.term,
-			PrevLogIndex: s.nextIndex[peerIndex] - 1,
-			PrevLogTerm:  int64(prevLogTerm),
-			Entries:      s.log[s.nextIndex[peerIndex]:],
-			LeaderCommit: s.commitIndex,
-		}
-		client := NewRaftSurfstoreClient(conn)
-		output, err := client.AppendEntries(ctx, input)
-		log.Printf("Server[%d]: follower[%v] return %v\n", s.ID, peerIndex, output)
-		if err != nil { // follower crashed
-			continue
-		}
-		if s.term < output.Term {
-			log.Printf("Server[%d]: I am not the leader anymore\n", s.ID)
-			s.term = output.Term
-			s.isLeaderMutex.Lock()
-			s.isLeader = false
-			s.isLeaderMutex.Unlock()
-			break
-		}
-		if output.Success {
-			log.Printf("Server[%v]: Follower[%d] commited, update matchIndex and nextIndex\n", s.ID, peerIndex)
-			s.nextIndex[peerIndex] = int64(len(s.log))
-			s.matchIndex[peerIndex] = output.MatchedIndex
-		}
+
 	}
 	// update commitIndex, commit and apply
 	for commitIndex := s.commitIndex + 1; commitIndex < int64(len(s.log)); commitIndex += 1 {
@@ -425,7 +429,8 @@ func (s *RaftSurfstore) MajorityCommited(commitIndex int64) bool {
 			count += 1
 		}
 	}
-	return count > len(s.peers)/2 && s.log[commitIndex].Term == s.term
+	// return count > len(s.peers)/2 && s.log[commitIndex].Term == s.term
+	return count > len(s.peers)/2
 }
 
 // ========== DO NOT MODIFY BELOW THIS LINE =====================================

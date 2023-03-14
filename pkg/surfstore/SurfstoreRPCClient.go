@@ -105,7 +105,7 @@ func (surfClient *RPCClient) GetFileInfoMap(serverFileInfoMap *map[string]*FileM
 			return conn.Close()
 		}
 	}
-	return nil
+	return ERR_LEADER_NOTFOUND
 }
 
 func (surfClient *RPCClient) UpdateFile(fileMetaData *FileMetaData, latestVersion *int32) error {
@@ -125,7 +125,7 @@ func (surfClient *RPCClient) UpdateFile(fileMetaData *FileMetaData, latestVersio
 			return conn.Close()
 		}
 	}
-	return nil
+	return ERR_LEADER_NOTFOUND
 }
 
 func (surfClient *RPCClient) GetBlockStoreMap(blockHashesIn []string, blockStoreMap *map[string][]string) error {
@@ -147,7 +147,7 @@ func (surfClient *RPCClient) GetBlockStoreMap(blockHashesIn []string, blockStore
 			return conn.Close()
 		}
 	}
-	return nil
+	return ERR_LEADER_NOTFOUND
 }
 
 func (surfClient *RPCClient) GetBlockStoreAddrs(blockStoreAddrs *[]string) error {
@@ -167,7 +167,7 @@ func (surfClient *RPCClient) GetBlockStoreAddrs(blockStoreAddrs *[]string) error
 			return conn.Close()
 		}
 	}
-	return nil
+	return ERR_LEADER_NOTFOUND
 }
 
 // This line guarantees all method for RPCClient are implemented
