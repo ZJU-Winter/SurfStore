@@ -3,7 +3,6 @@ package surfstore
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
 	"sort"
 )
 
@@ -38,8 +37,6 @@ func NewConsistentHashRing(serverAddrs []string) *ConsistentHashRing {
 	for _, serverAdd := range serverAddrs {
 		hash := rst.Hash("blockstore" + serverAdd)
 		serverMap[hash] = serverAdd
-		//TODO: delelte
-		log.Printf("serverAdd %v: hash %v\n", serverAdd, hash)
 	}
 	rst.ServerMap = serverMap
 	return rst

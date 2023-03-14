@@ -110,3 +110,28 @@ Clean:
 ```console
 $ make clean
 ```
+
+# How to run the whole system
+Config File
+```json
+{
+    "RaftAddrs": ["localhost:9007", "localhost:9008", "localhost:9009"],
+    "BlockAddrs": ["localhost:8081", "localhost:8082", "localhost:8083"]
+}
+```
+Run several blockstore servers according to the **config file**
+```console
+$ go run cmd/SurfstoreServerExec/main.go -d -s block -p 8081 -l
+$ go run cmd/SurfstoreServerExec/main.go -d -s block -p 8082 -l
+$ go run cmd/SurfstoreServerExec/main.go -d -s block -p 8083 -l
+```
+Run several raft servers according to the **config file**
+```console
+$ go run cmd/SurfstoreRaftServerExec/main.go -d -f example_config.txt -i 0
+$ go run cmd/SurfstoreRaftServerExec/main.go -d -f example_config.txt -i 1
+$ go run cmd/SurfstoreRaftServerExec/main.go -d -f example_config.txt -i 2
+```
+Run Client to synchronize
+```console
+$ go run cmd/SurfstoreClientExec/main.go -d -f configfile.txt baseDir blockSize
+```

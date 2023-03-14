@@ -78,13 +78,17 @@ func startServer(hostAddr string, serviceType string, blockStoreAddrs []string) 
 	log.Println("Listening on " + hostAddr)
 	grpcServer := grpc.NewServer()
 	if serviceType == "both" {
-		surfstore.RegisterBlockStoreServer(grpcServer, surfstore.NewBlockStore())
-		surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(blockStoreAddrs))
-		log.Println("Registered MetaStore service")
-		log.Println("Registered BlockStore service")
+		log.Println("Use Raft Server to start a metaStore")
+		return fmt.Errorf("doesn't support the type")
+		// surfstore.RegisterBlockStoreServer(grpcServer, surfstore.NewBlockStore())
+		// surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(blockStoreAddrs))
+		// log.Println("Registered MetaStore service")
+		// log.Println("Registered BlockStore service")
 	} else if serviceType == "meta" {
-		surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(blockStoreAddrs))
-		log.Println("Registered MetaStore service")
+		log.Println("Use Raft Server to start a metaStore")
+		return fmt.Errorf("doesn't support the type")
+		// surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(blockStoreAddrs))
+		// log.Println("Registered MetaStore service")
 	} else {
 		surfstore.RegisterBlockStoreServer(grpcServer, surfstore.NewBlockStore())
 		log.Println("Registered BlockStore service")
@@ -93,5 +97,5 @@ func startServer(hostAddr string, serviceType string, blockStoreAddrs []string) 
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf("xstartServer END")
+	return fmt.Errorf("startServer END")
 }

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"net"
 	"os"
 	"sync"
+
+	"google.golang.org/grpc"
 )
 
 type RaftConfig struct {
@@ -33,8 +36,6 @@ func LoadRaftConfigFile(filename string) (cfg RaftConfig) {
 }
 
 func NewRaftServer(id int64, config RaftConfig) (*RaftSurfstore, error) {
-    // TODO Any initialization you need here
-
 	isLeaderMutex := sync.RWMutex{}
 	isCrashedMutex := sync.RWMutex{}
 
@@ -46,12 +47,36 @@ func NewRaftServer(id int64, config RaftConfig) (*RaftSurfstore, error) {
 		log:            make([]*UpdateOperation, 0),
 		isCrashed:      false,
 		isCrashedMutex: &isCrashedMutex,
+		ID:             id,
+		peers:          config.RaftAddrs,
+		commitIndex:    -1,
+		lastApplied:    -1,
+		matchIndex:     make([]int64, len(config.RaftAddrs)),
+		nextIndex:      make([]int64, len(config.RaftAddrs)),
+		// pendingCommits: make([]*chan bool, 0)
 	}
-
+	for i := range server.matchIndex {
+		server.matchIndex[i] = -1
+		server.nextIndex[i] = 0
+	}
 	return &server, nil
 }
 
-// TODO Start up the Raft server and any services here
+// Start up the Raft server and the MetaStore server
 func ServeRaftServer(server *RaftSurfstore) error {
-    panic("todo")
+	grpcServer := grpc.NewServer()
+	addr := server.peers[server.ID]
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	log.Println("Listening on" + addr)
+	RegisterRaftSurfstoreServer(grpcServer, server)
+	RegisterMetaStoreServer(grpcServer, server.metaStore)
+	log.Println("Registered raft server and meta server")
+	err = grpcServer.Serve(listener)
+	if err != nil {
+		return err
+	}
+	return nil
 }
