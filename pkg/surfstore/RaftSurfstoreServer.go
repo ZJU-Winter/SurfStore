@@ -169,11 +169,11 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 //  1. check isLeader and isCrashed, append the filemeta to the log
 //  2. send AppendEntries() to all the followers
 //     2.1 send log[nextIndex[peerIndex]: ] prevIndex = nextIndex[peerIndex] - 1, ** check boundary **
-//     2.2 if return false because of inconsistency, retry with smaller nextIndex
+//     2.2 if return false because of inconsistency, retry with smaller nextIndex in SendToFollower()
 //     2.3 if return false becasue of wrong term, check the term and convert to follower, update current term and return error
-//  3. block until majority of the followers return true, commitChan
+//  3. block until majority of the followers back online, ** retry **
 //  4. apply to metaStore, update lastApplied and commitIndex
-//  5. update matchIndex to the return value, update nextIndex matchIndex + 1
+//  5. update matchIndex to the return value, update nextIndex matchIndex + 1 in SendToFollower()
 func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) (*Version, error) {
 	log.Printf("Server[%v]: UpdateFile\n", s.ID)
 	s.isCrashedMutex.RLock()
@@ -296,7 +296,7 @@ func (s *RaftSurfstore) SendToFollower(ctx context.Context, peerIndex int, respo
 			s.matchIndex[peerIndex] = output.MatchedIndex
 			*responses <- true
 			return
-		} else if output.Term != s.term { // TODO: is possible?
+		} else if output.Term != s.term { // not the leader
 			log.Printf("Server[%v]: Follower[%d] term mismatch?\n", s.ID, peerIndex)
 			s.term = output.Term
 			s.isLeaderMutex.Lock()
