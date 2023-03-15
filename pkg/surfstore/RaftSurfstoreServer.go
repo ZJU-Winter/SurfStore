@@ -171,28 +171,33 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 	log.Printf("Server[%v]: UpdateFile SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &commitChan)
 
-	if commit := <-commitChan; !commit { // blocking here
+	for commit := <-commitChan; !commit; { // blocking here
+		s.isCrashedMutex.RLocker().Lock()
+		if s.isCrashed {
+			s.isCrashedMutex.RLocker().Unlock()
+			return nil, ERR_SERVER_CRASHED
+		}
+		s.isCrashedMutex.RLocker().Unlock()
 		log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
-		time.Sleep(2 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &commitChan)
-	} else {
-		log.Printf("Server[%v]: UpdateFile update commitIndex\n", s.ID)
-		s.commitIndex = int64(len(s.log) - 1)
-		rst := &Version{}
-		var err error
-		for s.lastApplied < s.commitIndex {
-			rst, err = s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
-			s.lastApplied += 1
-		}
-		if err != nil {
-			return &Version{
-				Version: -1,
-			}, err
-		}
-		return rst, nil
 	}
-	time.Sleep(3 * time.Second)
-	return nil, ERR_MAJORITY_DOWN
+	log.Printf("Server[%v]: UpdateFile update commitIndex\n", s.ID)
+	s.commitIndex = int64(len(s.log) - 1)
+	rst := &Version{}
+	var err error
+	for s.lastApplied < s.commitIndex {
+		rst, err = s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
+		s.lastApplied += 1
+	}
+	if err != nil {
+		return &Version{
+			Version: -1,
+		}, err
+	}
+	return rst, nil
+	// time.Sleep(3 * time.Second)
+	// return nil, ERR_MAJORITY_DOWN
 }
 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
@@ -433,7 +438,6 @@ peerLoop:
 				s.nextIndex[peerIndex] -= 1
 			}
 		}
-
 	}
 	// update commitIndex, commit and apply
 	for commitIndex := s.commitIndex + 1; commitIndex < int64(len(s.log)); commitIndex += 1 {
@@ -467,7 +471,6 @@ func (s *RaftSurfstore) MajorityCommited(commitIndex int64) bool {
 		}
 	}
 	return count > len(s.peers)/2 && s.log[commitIndex].Term == s.term
-	// return count > len(s.peers)/2
 }
 
 // ========== DO NOT MODIFY BELOW THIS LINE =====================================
