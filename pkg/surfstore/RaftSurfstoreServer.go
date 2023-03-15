@@ -90,6 +90,20 @@ func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashe
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
 	for connected := <-majorityChan; !connected; connected = <-majorityChan { // blocking here
+		s.isCrashedMutex.RLocker().Lock()
+		if s.isCrashed {
+			s.isCrashedMutex.RLocker().Unlock()
+			return nil, ERR_SERVER_CRASHED
+		}
+		s.isCrashedMutex.RLocker().Unlock()
+
+		s.isLeaderMutex.RLocker().Lock()
+		if !s.isLeader {
+			s.isLeaderMutex.RLocker().Unlock()
+			return nil, ERR_NOT_LEADER
+		}
+		s.isLeaderMutex.RLocker().Unlock()
+
 		log.Printf("Server[%v]: GetBlockStoreMap failed to contact majority of the nodes, retry\n", s.ID)
 		time.Sleep(500 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &majorityChan)
@@ -126,6 +140,20 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
 	for connected := <-majorityChan; !connected; connected = <-majorityChan { // blocking here
+		s.isCrashedMutex.RLocker().Lock()
+		if s.isCrashed {
+			s.isCrashedMutex.RLocker().Unlock()
+			return nil, ERR_SERVER_CRASHED
+		}
+		s.isCrashedMutex.RLocker().Unlock()
+
+		s.isLeaderMutex.RLocker().Lock()
+		if !s.isLeader {
+			s.isLeaderMutex.RLocker().Unlock()
+			return nil, ERR_NOT_LEADER
+		}
+		s.isLeaderMutex.RLocker().Unlock()
+
 		log.Printf("Server[%v]: GetBlockStoreAddrs failed to contact majority of the nodes, retry\n", s.ID)
 		time.Sleep(500 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &majorityChan)
