@@ -191,7 +191,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		}
 		return rst, nil
 	}
-	time.Sleep(6 * time.Second)
+	time.Sleep(3 * time.Second)
 	return nil, ERR_MAJORITY_DOWN
 }
 
