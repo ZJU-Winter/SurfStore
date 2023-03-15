@@ -180,8 +180,16 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 				return nil, ERR_SERVER_CRASHED
 			}
 			s.isCrashedMutex.RLocker().Unlock()
+
+			s.isLeaderMutex.RLocker().Lock()
+			if !s.isLeader {
+				s.isLeaderMutex.RLocker().Unlock()
+				break
+			}
+			s.isLeaderMutex.RLocker().Unlock()
+
 			log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
-			// time.Sleep(100 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			go s.SendToAllFollowers(ctx, &commitChan)
 		} else {
 			log.Printf("Server[%v]: UpdateFile update commitIndex\n", s.ID)
@@ -201,7 +209,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		}
 	}
 	// time.Sleep(3 * time.Second)
-	// return nil, ERR_MAJORITY_DOWN
+	return nil, ERR_NOT_LEADER
 }
 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
