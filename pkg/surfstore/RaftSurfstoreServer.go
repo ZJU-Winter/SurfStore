@@ -23,7 +23,6 @@ type RaftSurfstore struct {
 	lastApplied int64
 	matchIndex  []int64 // initialized to all -1s
 	nextIndex   []int64 // initialized to all 0s
-	// pendingCommits []*chan bool
 
 	/*--------------- Chaos Monkey --------------*/
 	isCrashed      bool
@@ -206,8 +205,6 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		}, err
 	}
 	return rst, nil
-	// time.Sleep(3 * time.Second)
-	// return nil, ERR_NOT_LEADER
 }
 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
