@@ -186,7 +186,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		s.isLeaderMutex.RLocker().Unlock()
 
 		log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
-		time.Sleep(500 * time.Millisecond)
+		// time.Sleep(500 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &commitChan)
 	}
 
