@@ -126,7 +126,7 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 	log.Printf("Server[%v]: GetBlockStoreAddrs SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
-	for connected := <-majorityChan; !connected; { // blocking here
+	for connected := <-majorityChan; !connected; connected = <-majorityChan { // blocking here
 		log.Printf("Server[%v]: GetBlockStoreAddrs failed to contact majority of the nodes, retry\n", s.ID)
 		time.Sleep(2 * time.Second)
 		go s.SendToAllFollowers(ctx, &majorityChan)
@@ -171,45 +171,43 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 	log.Printf("Server[%v]: UpdateFile SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &commitChan)
 
-	for { // blocking here
-		commit := <-commitChan
-		if !commit {
-			s.isCrashedMutex.RLocker().Lock()
-			if s.isCrashed {
-				s.isCrashedMutex.RLocker().Unlock()
-				return nil, ERR_SERVER_CRASHED
-			}
+	for commit := <-commitChan; !commit; commit = <-commitChan { // blocking here
+		s.isCrashedMutex.RLocker().Lock()
+		if s.isCrashed {
 			s.isCrashedMutex.RLocker().Unlock()
-
-			s.isLeaderMutex.RLocker().Lock()
-			if !s.isLeader {
-				s.isLeaderMutex.RLocker().Unlock()
-				break
-			}
-			s.isLeaderMutex.RLocker().Unlock()
-
-			log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
-			time.Sleep(500 * time.Millisecond)
-			go s.SendToAllFollowers(ctx, &commitChan)
-		} else {
-			log.Printf("Server[%v]: UpdateFile update commitIndex\n", s.ID)
-			s.commitIndex = int64(len(s.log) - 1)
-			rst := &Version{}
-			var err error
-			for s.lastApplied < s.commitIndex {
-				rst, err = s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
-				s.lastApplied += 1
-			}
-			if err != nil {
-				return &Version{
-					Version: -1,
-				}, err
-			}
-			return rst, nil
+			return nil, ERR_SERVER_CRASHED
 		}
+		s.isCrashedMutex.RLocker().Unlock()
+
+		s.isLeaderMutex.RLocker().Lock()
+		if !s.isLeader {
+			s.isLeaderMutex.RLocker().Unlock()
+			return nil, ERR_NOT_LEADER
+		}
+		s.isLeaderMutex.RLocker().Unlock()
+
+		log.Printf("Server[%v]: UpdateFile failed to contact majority of the nodes, retry\n", s.ID)
+		time.Sleep(500 * time.Millisecond)
+		go s.SendToAllFollowers(ctx, &commitChan)
 	}
+
+	log.Printf("Server[%v]: Connected to majority of the followers\n", s.ID)
+	s.commitIndex = int64(len(s.log) - 1)
+	log.Printf("Server[%v]: UpdateFile updated commitIndex\n", s.ID)
+	rst := &Version{}
+	var err error
+	for s.lastApplied < s.commitIndex {
+		rst, err = s.metaStore.UpdateFile(ctx, s.log[s.lastApplied+1].FileMetaData)
+		s.lastApplied += 1
+	}
+	if err != nil {
+		return &Version{
+			Version: -1,
+		}, err
+	}
+	return rst, nil
 	// time.Sleep(3 * time.Second)
-	return nil, ERR_NOT_LEADER
+	// return nil, ERR_NOT_LEADER
 }
 
 func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan bool) {
@@ -234,7 +232,6 @@ func (s *RaftSurfstore) SendToAllFollowers(ctx context.Context, commitChan *chan
 	}
 
 	if totalSuccess > len(s.peers)/2 {
-		log.Printf("Server[%v]: Connected to majority of the followers\n", s.ID)
 		*commitChan <- true
 	} else {
 		*commitChan <- false
