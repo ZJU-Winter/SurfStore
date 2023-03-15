@@ -54,9 +54,9 @@ func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty
 	log.Printf("Server[%v]: GetFileInfoMap SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
-	for connected := <-majorityChan; !connected; { // blocking here
+	for connected := <-majorityChan; !connected; connected = <-majorityChan { // blocking here
 		log.Printf("Server[%v]: GetFileInfoMap failed to contact majority of the nodes, retry\n", s.ID)
-		time.Sleep(2 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &majorityChan)
 	}
 	log.Printf("Server[%v]: GetFileInfoMap return right value\n", s.ID)
@@ -90,9 +90,9 @@ func (s *RaftSurfstore) GetBlockStoreMap(ctx context.Context, hashes *BlockHashe
 	log.Printf("Server[%v]: GetBlockStoreMap SendToAllFollowers\n", s.ID)
 	go s.SendToAllFollowers(ctx, &majorityChan)
 
-	for connected := <-majorityChan; !connected; { // blocking here
+	for connected := <-majorityChan; !connected; connected = <-majorityChan { // blocking here
 		log.Printf("Server[%v]: GetBlockStoreMap failed to contact majority of the nodes, retry\n", s.ID)
-		time.Sleep(2 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &majorityChan)
 	}
 	log.Printf("Server[%v]: GetBlockStoreMap return right value\n", s.ID)
@@ -128,7 +128,7 @@ func (s *RaftSurfstore) GetBlockStoreAddrs(ctx context.Context, empty *emptypb.E
 
 	for connected := <-majorityChan; !connected; connected = <-majorityChan { // blocking here
 		log.Printf("Server[%v]: GetBlockStoreAddrs failed to contact majority of the nodes, retry\n", s.ID)
-		time.Sleep(2 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		go s.SendToAllFollowers(ctx, &majorityChan)
 	}
 	log.Printf("Server[%v]: GetBlockStoreAddrs update commitIndex\n", s.ID)
